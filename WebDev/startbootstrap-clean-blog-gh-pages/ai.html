@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snake - Professional Edition</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { 
+    font-family: 'Segoe UI', sans-serif; 
+    background: #0B172A; 
+    color: #E2E8F0; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  #snake-root { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    width: 100%;
+    padding: 20px;
+  }
+
+  /* FIXED COLOR SELECTION SCREEN */
+  #color-screen { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    gap: 1.5rem; 
+    padding: 2.5rem;
+    background: #16243d;
+    border-radius: 20px;
+    border: 1px solid #1E293B;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    width: 100%;
+    max-width: 500px; /* Fixed the width so buttons fit */
+  }
+
+  .color-grid { 
+    display: grid; 
+    grid-template-columns: repeat(4, 1fr); 
+    gap: 12px; 
+    width: 100%;
+  }
+
+  .color-btn { 
+    width: 100%; 
+    aspect-ratio: 1 / 1.1;
+    border-radius: 12px; 
+    border: 2px solid #1E293B; 
+    background: #0B172A;
+    cursor: pointer; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 8px; 
+    transition: 0.2s; 
+  }
+  .color-btn:hover { transform: translateY(-5px); border-color: #94A3B8; }
+  .color-btn .swatch { width: 32px; height: 32px; border-radius: 50%; }
+  .color-btn span { font-size: 11px; font-weight: 600; color: #94A3B8; }
+
+  /* GAME SCREEN */
+  #game-screen { display: none; flex-direction: column; align-items: center; gap: 20px; }
+  
+  #hud { 
+    display: flex; 
+    gap: 60px; 
+    font-size: 22px; 
+    font-weight: bold;
+    color: #94A3B8; 
+    background: #16243d;
+    padding: 15px 40px;
+    border-radius: 50px;
+    border: 1px solid #1E293B;
+  }
+  #hud span { color: #F8FAFC; }
+
+  canvas { 
+    border: 5px solid #1E293B; 
+    border-radius: 15px; 
+    background: #0D1117;
+    box-shadow: 0 15px 50px rgba(0,0,0,0.7);
+    width: 600px;
+    height: 600px;
+  }
+
+  #message { font-size: 18px; color: #94A3B8; font-weight: 500; height: 28px; }
+
+  #restart-btn { 
+    display: none; 
+    padding: 15px 40px; 
+    border: none; 
+    border-radius: 50px; 
+    background: #94A3B8; 
+    color: #0B172A;
+    cursor: pointer; 
+    font-size: 18px; 
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+
+  .dpad { display: grid; grid-template-columns: repeat(3, 75px); gap: 10px; }
+  .dpad button { 
+    background: #16243d; 
+    border: 2px solid #1E293B; 
+    color: #F8FAFC;
+    border-radius: 15px; 
+    font-size: 28px; 
+    height: 75px;
+    width: 100%;
+    cursor: pointer; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+  }
+  .dpad button:active { background: #94A3B8; color: #0B172A; }
+</style>
+</head>
+<body>
+
+<div id="snake-root">
+  <div id="color-screen">
+    <h2 style="font-size: 28px; margin-bottom: 5px;">Select Your Snake</h2>
+    <p style="margin-bottom: 10px;">Pick a theme to begin</p>
+    <div class="color-grid" id="color-grid"></div>
+  </div>
+
+  <div id="game-screen">
+    <div id="hud">
+      <div>SCORE <span id="score-val">0</span></div>
+      <div>BEST <span id="best-val">0</span></div>
+    </div>
+    <canvas id="c" width="600" height="600"></canvas>
+    <div id="message">Use arrow keys or click the buttons</div>
+    <button id="restart-btn" onclick="startGame()">PLAY AGAIN</button>
+    
+    <div class="dpad">
+      <div style="grid-column: 2;"><button onclick="handleBtn(event, 0,-1)">▲</button></div>
+      <div style="grid-row: 2; grid-column: 1;"><button onclick="handleBtn(event, -1,0)">◀</button></div>
+      <div style="grid-row: 2; grid-column: 2;"><button onclick="handleBtn(event, 0,1)">▼</button></div>
+      <div style="grid-row: 2; grid-column: 3;"><button onclick="handleBtn(event, 1,0)">▶</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS = [
+  { name:"Emerald", head:"#10B981", body:"#059669" },
+  { name:"Sky",     head:"#3B82F6", body:"#2563EB" },
+  { name:"Sunset",  head:"#F59E0B", body:"#D97706" },
+  { name:"Rose",    head:"#F43F5E", body:"#E11D48" },
+  { name:"Violet",  head:"#8B5CF6", body:"#7C3AED" },
+  { name:"Slate",   head:"#94A3B8", body:"#64748B" },
+  { name:"Gold",    head:"#FACC15", body:"#EAB308" },
+  { name:"Cyan",    head:"#06B6D4", body:"#0891B2" },
+];
+
+const CELL=30, COLS=20, ROWS=20;
+let snake, dx, dy, food, score, best=0, loop, chosen, dead;
+
+const grid = document.getElementById('color-grid');
+COLORS.forEach(c => {
+  const btn = document.createElement('button');
+  btn.className = 'color-btn';
+  btn.innerHTML = `<div class="swatch" style="background:${c.head}"></div><span>${c.name}</span>`;
+  btn.onclick = () => { chosen = c; pickColor(); };
+  grid.appendChild(btn);
+});
+
+function pickColor() {
+  document.getElementById('color-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'flex';
+  startGame();
+}
+
+function rndFood() {
+  let f;
+  do { f = { x: Math.floor(Math.random()*COLS), y: Math.floor(Math.random()*ROWS) }; }
+  while (snake.some(s => s.x===f.x && s.y===f.y));
+  return f;
+}
+
+function startGame() {
+  clearInterval(loop);
+  dead = false;
+  snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dx=1; dy=0; score=0;
+  food = rndFood();
+  document.getElementById('score-val').textContent = 0;
+  document.getElementById('message').textContent = 'Collect the pixels';
+  document.getElementById('restart-btn').style.display = 'none';
+  draw();
+  loop = setInterval(tick, 110);
+}
+
+function handleBtn(e, nx, ny) {
+  e.preventDefault(); 
+  dir(nx, ny);
+}
+
+function dir(nx, ny) {
+  if (nx===-dx && ny===-dy) return;
+  dx=nx; dy=ny;
+}
+
+function tick() {
+  const head = { x: snake[0].x+dx, y: snake[0].y+dy };
+  if (head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS||snake.some(s=>s.x===head.x&&s.y===head.y)) {
+    clearInterval(loop); dead=true;
+    if (score>best) { best=score; document.getElementById('best-val').textContent=best; }
+    document.getElementById('message').textContent = "GAME OVER";
+    document.getElementById('restart-btn').style.display = 'inline-block';
+    draw(); return;
+  }
+  snake.unshift(head);
+  if (head.x===food.x && head.y===food.y) {
+    score++; document.getElementById('score-val').textContent=score; food=rndFood();
+  } else { snake.pop(); }
+  draw();
+}
+
+function draw() {
+  const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+  ctx.fillStyle = '#0D1117';
+  ctx.fillRect(0,0,cv.width,cv.height);
+
+  ctx.strokeStyle = '#16243d';
+  ctx.lineWidth = 1;
+  for(let i=0; i<=COLS; i++) {
+    ctx.beginPath(); ctx.moveTo(i*CELL, 0); ctx.lineTo(i*CELL, cv.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i*CELL); ctx.lineTo(cv.width, i*CELL); ctx.stroke();
+  }
+
+  snake.forEach((s,i) => {
+    ctx.fillStyle = i===0 ? chosen.head : chosen.body;
+    rr(ctx,s.x*CELL+2,s.y*CELL+2,CELL-4,CELL-4,i===0?8:5);
+    if (i===0) {
+      ctx.fillStyle='#fff';
+      ctx.beginPath();
+      ctx.arc(s.x*CELL+CELL/2 + (dx*7) + (dy*7), s.y*CELL+CELL/2 + (dy*7) - (dx*7), 4, 0, Math.PI*2);
+      ctx.arc(s.x*CELL+CELL/2 + (dx*7) - (dy*7), s.y*CELL+CELL/2 + (dy*7) + (dx*7), 4, 0, Math.PI*2);
+      ctx.fill();
+    }
+  });
+
+  ctx.shadowBlur = 20;
+  ctx.shadowColor = '#FF3E3E';
+  ctx.fillStyle='#FF3E3E'; 
+  rr(ctx,food.x*CELL+6,food.y*CELL+6,CELL-12,CELL-12,6);
+  ctx.shadowBlur = 0;
+}
+
+function rr(ctx,x,y,w,h,r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath(); ctx.fill();
+}
+
+document.addEventListener('keydown', e => {
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+  if (e.key==='ArrowUp') dir(0,-1);
+  if (e.key==='ArrowDown') dir(0,1);
+  if (e.key==='ArrowLeft') dir(-1,0);
+  if (e.key==='ArrowRight') dir(1,0);
+});
+</script>
+</body>
+</html>
